@@ -2,26 +2,42 @@ package com.example.map_demo
 
 import android.Manifest
 import android.Manifest.permission
+import android.content.Context
 import android.content.pm.PackageManager
+import android.location.Address
+import android.location.Geocoder
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
+import android.view.inputmethod.InputMethodManager
+import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.google.android.gms.maps.*
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.LatLngBounds
 import com.google.android.gms.maps.model.MarkerOptions
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import kotlinx.android.synthetic.main.activity_main.*
+import java.io.IOException
+import java.util.*
 
 class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private var mLocationPermissionGranted: Boolean = false
-    private val PERMISSION_REQUEST_CODE : Int = 9001
+    private val PERMISSION_REQUEST_CODE: Int = 9001
     private val TAG: String = "GoogleMaps"
+
+    private lateinit var mBtnLocate: ImageButton
     private lateinit var mMap: GoogleMap
+    private lateinit var fab: FloatingActionButton
+    private lateinit var mSearchAddress: EditText
 
     private val MYFLAT_LAT = 22.631413
     private val MYFLAT_LNG = 88.393155
@@ -30,6 +46,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         setSupportActionBar(toolbar)
+
+        // Fragment Implemantion
         val supportMapFragment = SupportMapFragment.newInstance()
         supportFragmentManager
             .beginTransaction()
@@ -37,7 +55,63 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             .commit()
         supportMapFragment.getMapAsync(this)
 
+        // Floating Action Button
+        fab = findViewById(R.id.fab)
+        fab.setOnClickListener { view ->
+            if (mMap != null) {
+                val topBoundry = 22.634214
+                val rightBoundry = 88.387280
+                val bottomBoundry = 22.621412
+                val leftBoundry = 88.394084
+
+                val MYPLACE_BOUNDS: LatLngBounds = LatLngBounds(
+                    LatLng(bottomBoundry, leftBoundry),
+                    LatLng(topBoundry, rightBoundry)
+                )
+                mMap.setLatLngBoundsForCameraTarget(MYPLACE_BOUNDS)
+                //mMap.animateCamera(CameraUpdateFactory.newLatLngBounds(MYPLACE_BOUNDS, 1))
+                //showMarker(MYPLACE_BOUNDS.center)
+            }
+        }
+
+        // Image Button and EditText Implementation
+        mSearchAddress = findViewById(R.id.et_location_name)
+        mBtnLocate = findViewById(R.id.bnt_location_search)
+        mBtnLocate.setOnClickListener(this::geoLocate)
+
+        // Function Call
         isServicesOk()
+    }
+
+    private fun geoLocate(view: View) {
+        hideSoftKeyboard(view)
+
+        val locationName: String = mSearchAddress.text.toString()
+        // Implementation of Geocoder Api
+        val geocoder: Geocoder = Geocoder(this, Locale.getDefault())
+        try {
+            val addressList : List<Address> = geocoder.getFromLocationName(locationName, 1)
+            if (addressList.size > 0){
+                // Store the Address in this place
+                val address : Address = addressList.get(0)
+                // In this line it will get the latitude and longitude from the address variable
+                gotoLocation(address.latitude, address.longitude)
+                mMap.addMarker(MarkerOptions().position(LatLng(address.latitude, address.longitude)))
+
+                Toast.makeText(this, address.locality, Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "geoLocate: Country: "+address.countryName)
+            }else{
+
+            }
+        } catch (e: IOException) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun hideSoftKeyboard(view: View) {
+        val inputMethodManager: InputMethodManager =
+            getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        inputMethodManager.hideSoftInputFromWindow(view.windowToken, 0)
     }
 
     private fun isServicesOk() {
@@ -62,7 +136,11 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
             mLocationPermissionGranted = true
@@ -74,7 +152,11 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
     override fun onMapReady(googleMap: GoogleMap) {
         Toast.makeText(this, "Map is showing", Toast.LENGTH_SHORT).show()
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
             return
         }
         googleMap.isMyLocationEnabled = true // take my current location
@@ -82,21 +164,22 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         mMap = googleMap
         gotoLocation(MYFLAT_LAT, MYFLAT_LNG)
 
-        mMap.uiSettings.isTiltGesturesEnabled = true
+        // At this stape add the the zoom_in and zoom_out work in this place & the take the direction to google maps..
+        /*mMap.uiSettings.isTiltGesturesEnabled = true
         mMap.uiSettings.isZoomControlsEnabled = true
-        mMap.uiSettings.isMapToolbarEnabled = true
+        mMap.uiSettings.isMapToolbarEnabled = true*/
         // Add a marker in Sydney and move the camera
-        val sydney = LatLng(22.631413, 88.393155)
-        mMap.addMarker(MarkerOptions().position(sydney).title("Marker in ARKA_FlAT "))
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney))
+        /* val myFlat = LatLng(22.631413, 88.393155)
+         mMap.addMarker(MarkerOptions().position(myFlat).title("Marker in ARKA_FlAT "))
+         mMap.moveCamera(CameraUpdateFactory.newLatLng(myFlat))*/
     }
 
-    private fun gotoLocation(lat : Double, lng : Double){
-        val latLng : LatLng = LatLng(lat, lng)
+    private fun gotoLocation(lat: Double, lng: Double) {
+        val latLng: LatLng = LatLng(lat, lng)
         // Set the cameraview
-            //val cameraUpdate : CameraUpdate = CameraUpdateFactory.newLatLng(latLng)
+        //val cameraUpdate : CameraUpdate = CameraUpdateFactory.newLatLng(latLng)
         // Set the camera using zoom view
-             val cameraUpdate : CameraUpdate = CameraUpdateFactory.newLatLngZoom(latLng, 15F)
+        val cameraUpdate: CameraUpdate = CameraUpdateFactory.newLatLngZoom(latLng, 15F)
         mMap.moveCamera(cameraUpdate)
     }
 
@@ -110,6 +193,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         // Handle action bar item clicks here. The action bar will
         // automatically handle clicks on the Home/Up button, so long
         // as you specify a parent activity in AndroidManifest.xml.
+
+        // In this place the change the map type from the menu....
         return when (item.itemId) {
             R.id.maptype_none -> {
                 mMap.mapType = GoogleMap.MAP_TYPE_NONE
@@ -136,6 +221,12 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             }
 
         }
+    }
+
+    private fun showMarker(latLng: LatLng) {
+        val markerOptions: MarkerOptions = MarkerOptions()
+        markerOptions.position(latLng)
+        mMap.addMarker(markerOptions)
     }
 }
 
